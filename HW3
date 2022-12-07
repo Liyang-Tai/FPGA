@@ -1,0 +1,238 @@
+`timescale 1ns / 1ps
+
+module ping_pong(clk,rst,button_L,button_R,p1_score,p2_score,led);
+
+input clk,rst,button_L,button_R;
+output p1_score,p2_score;
+output [4:0] led;
+
+wire div_clock;
+wire button_1,button_2;
+wire [3:0] state;
+
+divclk   div_clk  (div_clock,clk,rst);
+button   b1  (button_1,button_L,clk,rst);
+button   b2  (button_2,button_R,clk,rst);
+FSM      f1  (clk,rst,button_1,button_2,p1_score,p2_score,led,state);
+LED      L1 (clk,rst,state,led);
+scoreLED SL (clk,rst,state,p1_score,p2_score);
+
+endmodule
+
+module divclk(div_clock,clk,rst);
+
+input clk,rst;
+output div_clock;
+
+reg [25:0] divclkcnt;
+
+assign div_clock = divclkcnt[24];
+
+always@(posedge clk or negedge rst)
+    begin
+        if(rst)
+            divclkcnt = 25'b0;
+        else
+            divclkcnt = divclkcnt + 1;
+    end
+endmodule
+
+module button(click,in,clk,rst);
+output reg click;
+input in,clk,rst;
+
+reg [23:0]decnt;
+parameter bound = 24'hffffff;
+
+always @ (posedge clk or negedge rst)
+    begin
+	   if(rst)
+	       begin
+		      decnt <= 0;
+		      click <= 0;
+	       end
+	   else
+	       begin
+		      if(in)
+		          begin
+		              if(decnt < bound)
+		                  begin
+			                 decnt <= decnt + 1;
+			                 click <= 0;
+			              end
+			           else
+			              begin
+			                 decnt <= decnt;
+				             click <= 1;
+			              end
+		          end
+		      else
+		          begin
+			         decnt <= 0;
+			         click <= 0;
+		          end
+	          end
+    end
+endmodule
+
+module FSM (clk,rst,button_1,button_2,p1_score,p2_score,led,state,);
+input button_1,button_2;
+input p1_score,p2_score;
+input led;
+input clk,rst;
+output reg [3:0] state;
+
+always @(posedge clk or negedge rst)
+	begin
+		if(rst)
+			begin
+				state <= 4'b0000;
+			end
+		else
+			begin
+				case(state)
+					4'b0000:
+						begin
+							if(button_1 == 1)
+								state <= 4'b0001;
+							else if(button_2 == 1)
+								state <= 4'b0010;
+							else
+								state <= 4'b0000;
+						end
+					4'b0001:
+						begin
+							if(led == 5'b00001)
+							    state <= 4'b1111;
+							else
+							    state <= 4'b0001;
+						end
+					4'b0010:
+					    begin
+					        if(button_1 == 1 && p2_score == 1)
+							    state <= 4'b1101;
+							else if(button_1 == 1)
+							    state <= 4'b1100;
+							else
+							    state <= 4'b0100;
+					    end
+					4'b0011:
+					    begin
+					        if(button_2 == 1 && p1_score == 1)
+							    state <= 4'b1101;
+							else if(button_2 == 1)
+							    state <= 4'b1011;
+							else
+							    state <= 4'b0101;
+					    end
+					4'b0100:
+					    begin
+					        if(button_1 == 1 && p2_score == 1)
+							    state <= 4'b1101;
+							else if(button_1 == 1)
+							    state <= 4'b1100;
+							else
+							    state <= 4'b0110;
+					    end
+					4'b0101:
+					    begin
+					        if(button_2 == 1 && p1_score == 1)
+							    state <= 4'b1101;
+							else if(button_2 == 1)
+							    state <= 4'b1011;
+							else
+							    state <= 4'b0111;
+					    end
+			    endcase
+			end
+	end
+endmodule
+
+module LED (div_clk,rst,state,led);
+input [3:0] state;
+input div_clk,rst;
+output reg [4:0] led;
+
+always @(posedge div_clk or negedge rst)
+	begin
+		if(rst)
+			begin
+				led <= 5'b00000;
+			end
+		else
+			begin
+				case(state)
+					4'b0000:
+						begin
+							led <= 5'b00000;
+						end
+					4'b0001:
+						begin
+							if(led == 5'b00000)
+						       led <= 5'b10000;
+						    else
+							   led <= {led[0],led[4:1]};
+						end
+				    4'b0010:
+						begin
+							if(led == 5'b00000)
+						       led <= 5'b00001;
+						    else
+							   led <= {led[3:0],led[4]};
+						end
+					4'b0011:
+						begin
+							led <= 5'b00000;
+						end
+					4'b0100:
+						begin
+							led <= 5'b00000;
+						end
+					4'b0101:
+						begin
+							led <= 5'b11111;
+						end
+			     endcase
+			end
+	end
+
+endmodule
+
+module scoreLED (clk,rst,state,p1_score,p2_score);
+input [3:0] state;
+input clk,rst;
+output reg p1_score,p2_score;
+
+always @(posedge clk or negedge rst)
+	begin
+		if(rst)
+			begin
+				p1_score <= 0;
+				p2_score <= 0;
+			end
+		else
+			begin
+				case(state)
+					4'b0000:
+						begin
+							p1_score <= 0;
+							p2_score <= 0;
+						end
+					4'b0011:
+						begin
+							p1_score <= 1;
+						end
+					4'b0100:
+						begin
+							p2_score <= 1;
+						end
+					4'b0101:
+						begin
+							p1_score <= 1;
+							p2_score <= 1;
+						end
+			     endcase
+			end
+	end
+
+endmodule
